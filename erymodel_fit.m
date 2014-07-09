@@ -10,8 +10,8 @@ function [allrarm, allrmeas] = erymodel_fit()
 
 % For each subfolder (day), (subfolder format: Day# (no padding))
 
-iday = 1;
-%for day=1:length(subfolders) %!!!! What if a day/subfolder is missing?
+%jday = 1; Use to increment excel column
+iday = 1; %for day=1:length(subfolders) %!!!! What if a day/subfolder is missing?
 
     %% Step 2: Obtain signal spectra
     curdir = strcat(pathname,subfolders{iday},'\');
