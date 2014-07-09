@@ -1,4 +1,4 @@
-function [] = erymodel_fit()
+function [allrarm, allrmeas] = erymodel_fit()
 % ERYMODEL_FIT
 %   Employs fitting algorithm and 1D DRS model to extract chromophore
 %   concentrations from total diffuse reflectance spectrum from skin
@@ -10,24 +10,25 @@ function [] = erymodel_fit()
 
 % For each subfolder (day), (subfolder format: Day# (no padding))
 
-for day=1:length(subfolders)
+iday = 1;
+%for day=1:length(subfolders) %!!!! What if a day/subfolder is missing?
 
     %% Step 2: Obtain signal spectra
-    curdir = strcat(pathname,subfolders{day},'\');
-    curcont = dir(curdir);
-    cellstruc = struct2cell(curcont);
-    cellstruc1 = cellstruc(1,:);
-    curcont = cellstruc1(3:end);
-    
-    % Step 2.1-2.5: Get R_arm & R_meas
-    
-    [rarm, rmeas] = retrieve_spec(pathname, curdir, day);
+    curdir = strcat(pathname,subfolders{iday},'\');
 
-    
+    if exist(curdir) == 7 % if day's subfolder exists
+        % Step 2.1-2.5: Get R_arm & R_meas
+        [rarm, rmeas] = retrieve_spec(pathname, curdir, iday);
+    else
+        %???
+    end
+
+    allrarm(:,iday) = rarm;
+    allrmeas(:,iday) = rmeas;
 
     %% Step 3: Extract parameters for arm & meas spectra
     
-end
+%end
 
 end
 
@@ -55,7 +56,7 @@ for jspec = 1:4
     kspec = 1;
     for ispec = 1:3
         curfilename = strcat(pre{jspec}, num2str(ispec), '.Master.Scope');
-        if cell2mat(strfind(curcont,curfilename)) == 1 % file exists
+        if exist(strcat(curdir,curfilename)) == 2 % name exists
             % pull spec, convert to rate
             curfile = strcat(pathname, 'Day', num2str(day), '\', curfilename);
             data = dlmread(curfile,'	', [19,0,2066,1]); % reads in the spectra values, tabs delimited
