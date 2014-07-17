@@ -3,10 +3,12 @@ function [xlsarm, xlshn] = erymodel_fit()
 %   Employs fitting algorithm and 1D DRS model to extract chromophore
 %   concentrations from total diffuse reflectance spectrum from skin
 
-%% Step 0: Load fitting files
+%% Step 0: Load fitting files & set starting parameters
 load('sbse_coeffs.mat')
 load('model_params.mat')
 param0 = [0.0076, 0.8421, -0.0017, 5.0798, 0.0321];
+paramarmin = param0;
+paramhnin = param0;
 lb = [0, 0.5, -0.01, 0, -0.1];
 ub = [0.08, 1, 0.01, 50, 0.4];
 options = optimset('Algorithm','levenberg-marquardt');
@@ -30,17 +32,21 @@ for iday=1:35
         [rarm, rhn] = retrieve_spec(pathname, curdir, iday); % Step 2.1-2.5: Get R_arm & R_meas
         
             %% Step 3: Correct rmeas for SBSE
-         rarmsbse = corr_sbse(rarm, sbse_coeffs);
-         stdevarm = fracstdev.*rarmsbse;
-         [paramarm,~,residual,~,~,~,jacobian] = lsqcurvefit(@(param0,lambda_param) calc_rd(param0,lambda_param,mua_param,musp),param0,lambda_param,rarmsbse,lb,ub,options);
+        rarmsbse = corr_sbse(rarm, sbse_coeffs);
+        stdevarm = fracstdev.*rarmsbse;
+        [paramarmout,~,residual,~,~,~,jacobian] = lsqcurvefit(@(paramarmin,lambda_param) calc_rd(paramarmin,lambda_param,mua_param,musp),paramarmin,lambda_param,rarmsbse,lb,ub,options);
+        eicorrarm = calc_ei(lambda_param, rarmsbse);
 
-        xlsarm(jday,:) = [iday, paramarm];
+        xlsarm(jday,:) = [iday, paramarmout, eicorrarm];
+        paramarmin = paramarmout;
 
         rhnsbse = corr_sbse(rhn, sbse_coeffs);
         stdevhn = fracstdev.*rhnsbse;
-        [paramhn,~,residual,~,~,~,jacobian] = lsqcurvefit(@(param0,lambda_param) calc_rd(param0,lambda_param,mua_param,musp),param0,lambda_param,rhnsbse,lb,ub,options);
+        [paramhnout,~,residual,~,~,~,jacobian] = lsqcurvefit(@(paramhnin,lambda_param) calc_rd(paramhnin,lambda_param,mua_param,musp),paramhnin,lambda_param,rhnsbse,lb,ub,options);
+        eicorrhn = calc_ei(lambda_param, rhnsbse);
      
-        xlshn(jday,:) = [iday, paramhn];
+        xlshn(jday,:) = [iday, paramhnout, eicorrhn];
+        paramhnin = paramhnout;
 
 %     rhnslcf = calc_rd(paramhn,lambda_param,mua_param,musp);
 %     figure
@@ -169,14 +175,52 @@ rslcf = slcf.*rconv;
 
 end
 
+%function [eicorr, del_eicorr] = calc_ei(lambda, rsbse, std)
+function eicorr = calc_ei(lambda, rsbse)
+
+% Calculate log inverse reflectance
+lir = log10(1./rsbse);
+%del_lir = 0.43*(std./rsbse);
+
+% Determine location and values of EI input
+lambdaei = [510 543 563 576 610];
+for j=1:length(lambdaei)
+    [~, eminloc(j)] = min(abs(lambda-lambdaei(j)));
+    eival(j) = mean(lir(eminloc(j)-2:eminloc(j)+2));
+    %del_eival(j) = mean(del_lir(eminloc(j)-2:eminloc(j)+2));
+end
+
+% Calculate EI
+ei = 100*(eival(3) + 1.5*(eival(2) + eival(4)) - 2*(eival(1) + eival(5)));
+%del_ei = 100*(del_eival(3) + 1.5*(del_eival(2) + del_eival(4)) + 2*(del_eival(1) + del_eival(5)));
+
+% Determine location and values of MI input
+lambdami = [650 700];
+for k=1:length(lambdami)
+    [~, mminloc(k)] = min(abs(lambda-lambdami(k)));
+    mival(k) = mean(lir(mminloc(k)-15:mminloc(k)+15));
+    %del_mival(k) = mean(del_lir(mminloc(k)-15:mminloc(k)+15));
+    
+end
+
+% Calculate MI
+mi = 100*(mival(1)-mival(2) + 0.015);
+%del_mi = 100*(del_mival(1) + del_mival(2));
+
+% Apply MI to get corrected EI
+eicorr = ei*(1+0.04*mi);
+%del_eicorr = eicorr*(del_ei/ei + 0.04*(del_ei/ei + del_mi/mi));
+
+end
+
 function [] = print_to_excel(pathname, xlsarm, xlshn)
 
 pathsplit = strsplit(pathname,'\');
 xlsfilename = pathsplit{end-1};
-xlsname = strcat(pathname, pathsplit{end-1}, '.xlsx');
+xlsname = strcat(pathname, pathsplit{end-1}, '(2).xlsx');
 %xlsnamestr = xlsname{1};
 
-headings = {'Day', 'tHb', 'SO2', 'mel', 'bkg', 'bkg_shift'};
+headings = {'Day', 'tHb', 'SO2', 'mel', 'bkg', 'bkg_shift', 'EIcorr'};
 
 xlswrite(xlsname, headings, 'Arm', 'A1')
 xlswrite(xlsname, xlsarm, 'Arm', 'A2')
