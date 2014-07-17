@@ -11,7 +11,8 @@ paramarmin = param0;
 paramhnin = param0;
 lb = [0, 0.5, -0.01, 0, -0.1];
 ub = [0.08, 1, 0.01, 50, 0.4];
-options = optimset('Algorithm','levenberg-marquardt');
+%options = optimset('Algorithm','levenberg-marquardt');
+options = optimset('Algorithm','trust-region-reflective');
 fracstdev = mua_param(1,:)/5000+0.005;
 
 %% Step 1: Determine location of files and files to process
